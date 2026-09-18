@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Sans ça, bindService() vers woyou.aidlservice.jiuiv5 échoue
+         silencieusement sur Android 11+ (visibilité des paquets) : l'app
+         se lance, ne plante pas, mais n'imprime jamais. -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+    </queries>
+
+    <!-- Permission exigée par le service imprimante Sunmi pour s'y lier. -->
+    <uses-permission android:name="woyou.aidlservice.jiuiv5.permission.PRINTER" />
+
     <application
         android:allowBackup="false"
         android:label="SunmiPrintBridge"

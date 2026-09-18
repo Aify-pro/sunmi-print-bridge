@@ -97,10 +97,16 @@ public class PrintActivity extends Activity {
         Intent intent = new Intent();
         intent.setPackage("woyou.aidlservice.jiuiv5");
         intent.setAction("woyou.aidlservice.jiuiv5.IWoyouService");
-        boolean bound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-
-        if (!bound) {
-            Log.e(TAG, "Failed to bind printer service — is this a Sunmi device?");
+        try {
+            boolean bound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+            if (!bound) {
+                Log.e(TAG, "Failed to bind printer service — is this a Sunmi device?");
+                finish();
+            }
+        } catch (SecurityException e) {
+            // Missing <queries> package visibility or the printer permission — logs
+            // instead of crashing so a bad build fails silently rather than with a force-close.
+            Log.e(TAG, "Not allowed to bind the printer service — check <queries> and the PRINTER permission", e);
             finish();
         }
     }
