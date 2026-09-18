@@ -19,30 +19,41 @@ import woyou.aidlservice.jiuiv5.IWoyouService;
 
 /**
  * Headless activity that receives sunmiprint:// intents from Chrome,
- * decodes the receipt JSON, prints via AIDL, and closes immediately.
+ * decodes a JSON payload, prints via AIDL, and closes immediately.
  *
- * URL format: sunmiprint://receipt?data=<base64-encoded-JSON>
+ * URL format: sunmiprint://<type>?data=<base64-encoded-JSON>
  *
- * JSON fields:
+ * <type> = "receipt" (default, backward compatible) — text-only receipt:
  *   title    - e.g. "Queue Ticket", "eSIM Request"
  *   brand    - e.g. "MTN"
  *   status   - e.g. "Submitted", "Successful"
  *   ticketId - e.g. "TKD-095"
  *   date     - e.g. "24/02/2026, 10:30:00 AM"
  *   message  - optional longer text
+ *
+ * <type> = "label" — centered label with a scannable QR code:
+ *   header   - optional small heading printed above the QR
+ *   qrData   - the string encoded into the QR code
+ *   code     - optional human-readable code printed below the QR
+ *   infoLine - optional small line of text printed last (e.g. a date)
  */
 public class PrintActivity extends Activity {
 
     private static final String TAG = "SunmiPrintBridge";
     private IWoyouService printerService;
     private String pendingData;
+    private String pendingType;
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             printerService = IWoyouService.Stub.asInterface(service);
             if (pendingData != null) {
-                printReceipt(pendingData);
+                if ("label".equals(pendingType)) {
+                    printLabel(pendingData);
+                } else {
+                    printReceipt(pendingData);
+                }
                 pendingData = null;
             }
             finish();
@@ -69,6 +80,8 @@ public class PrintActivity extends Activity {
             finish();
             return;
         }
+
+        pendingType = uri.getHost();
 
         // Decode the base64 JSON
         try {
@@ -154,6 +167,46 @@ public class PrintActivity extends Activity {
 
         } catch (JSONException | RemoteException e) {
             Log.e(TAG, "Print failed", e);
+        }
+    }
+
+    private void printLabel(String jsonString) {
+        try {
+            JSONObject data = new JSONObject(jsonString);
+
+            printerService.printerInit(null);
+            printerService.enterPrinterBuffer(true);
+            printerService.setAlignment(1, null); // center
+
+            if (data.has("header")) {
+                printerService.printTextWithFont(data.getString("header") + "\n", "", 22, null);
+                printerService.lineWrap(1, null);
+            }
+
+            if (data.has("qrData")) {
+                // modulesize 6 dots/module, error level 1 (~15% redundancy, "M") —
+                // matches the density used by the desktop PDF version of this label.
+                printerService.printQRCode(data.getString("qrData"), 6, 1, null);
+                printerService.lineWrap(1, null);
+            }
+
+            if (data.has("code")) {
+                printerService.setFontSize(32, null);
+                printerService.printText(data.getString("code") + "\n", null);
+            }
+
+            if (data.has("infoLine")) {
+                printerService.setFontSize(20, null);
+                printerService.printText(data.getString("infoLine") + "\n", null);
+            }
+
+            // Feed paper so the label clears the cutter
+            printerService.lineWrap(4, null);
+
+            printerService.exitPrinterBufferWithCallback(true, null);
+
+        } catch (JSONException | RemoteException e) {
+            Log.e(TAG, "Label print failed", e);
         }
     }
 

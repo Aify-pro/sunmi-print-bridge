@@ -1,16 +1,18 @@
 # Sunmi Print Bridge
 
-Headless companion APK for the banking kiosk web app. Receives `sunmiprint://` URLs from Chrome, prints receipts on the Sunmi V3H's built-in 58mm thermal printer via AIDL, and closes immediately.
+Headless companion APK, shared by several Aify-pro web apps (originally the banking kiosk, now also Seritex). Receives `sunmiprint://` URLs from Chrome, prints on the Sunmi V3H's built-in thermal printer via AIDL, and closes immediately.
 
 ## How it works
 
 ```
 Chrome (Print button tap)
-  → window.location.href = "sunmiprint://receipt?data=<base64-JSON>"
+  → window.location.href = "sunmiprint://<type>?data=<base64-JSON>"
   → Android opens PrintActivity (registered for sunmiprint:// scheme)
   → PrintActivity decodes JSON, binds AIDL printer service, prints, finish()
   → User is back in Chrome instantly
 ```
+
+`<type>` (the URL host) picks the print layout — `receipt` (default) or `label`, see below.
 
 ## Build (no local tools needed)
 
@@ -33,9 +35,7 @@ adb install app-debug.apk
 ```
 Or transfer the APK file to the device and tap to install (enable "Install from unknown sources" first).
 
-## JSON receipt format
-
-The web app sends base64-encoded JSON via the URL:
+## JSON receipt format (`sunmiprint://receipt?data=...`)
 
 ```json
 {
@@ -49,3 +49,19 @@ The web app sends base64-encoded JSON via the URL:
 ```
 
 All fields are optional except `title`.
+
+## JSON label format (`sunmiprint://label?data=...`)
+
+A centered label with a scannable QR code — used by Seritex to print a waste-bag
+tag directly on the terminal's printer, with no PDF and no download.
+
+```json
+{
+  "header": "SERITEX · SAC DE DÉCHETS",
+  "qrData": "https://app.seritex.example/dechets/SAC-2026-00042",
+  "code": "SAC-2026-00042",
+  "infoLine": "Créé le 18 sept. 2026"
+}
+```
+
+All fields are optional, but a label with no `qrData` just prints text.
