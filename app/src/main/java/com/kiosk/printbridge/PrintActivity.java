@@ -169,7 +169,7 @@ public class PrintActivity extends Activity {
             // Feed paper so receipt clears the cutter
             printerService.lineWrap(4, null);
 
-            printerService.exitPrinterBufferWithCallback(true, null);
+            printerService.exitPrinterBuffer(true);
 
         } catch (JSONException | RemoteException e) {
             Log.e(TAG, "Print failed", e);
@@ -209,7 +209,7 @@ public class PrintActivity extends Activity {
             // Feed paper so the label clears the cutter
             printerService.lineWrap(4, null);
 
-            printerService.exitPrinterBufferWithCallback(true, null);
+            printerService.exitPrinterBuffer(true);
 
         } catch (JSONException | RemoteException e) {
             Log.e(TAG, "Label print failed", e);
