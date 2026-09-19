@@ -12,6 +12,7 @@ import android.os.RemoteException;
 import android.util.Base64;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -36,6 +37,10 @@ import woyou.aidlservice.jiuiv5.IWoyouService;
  *   qrData   - the string encoded into the QR code
  *   code     - optional human-readable code printed below the QR
  *   infoLine - optional small line of text printed last (e.g. a date)
+ *
+ * <type> = "commands" — the caller owns the whole layout:
+ *   {"ops":[{"op":"align","v":0|1|2}, {"op":"text","v":"...","size":24},
+ *           {"op":"qr","v":"...","module":1-16,"level":0-3}, {"op":"feed","n":3}]}
  */
 public class PrintActivity extends Activity {
 
@@ -49,7 +54,9 @@ public class PrintActivity extends Activity {
         public void onServiceConnected(ComponentName name, IBinder service) {
             printerService = IWoyouService.Stub.asInterface(service);
             if (pendingData != null) {
-                if ("label".equals(pendingType)) {
+                if ("commands".equals(pendingType)) {
+                    printCommands(pendingData);
+                } else if ("label".equals(pendingType)) {
                     printLabel(pendingData);
                 } else {
                     printReceipt(pendingData);
@@ -173,6 +180,45 @@ public class PrintActivity extends Activity {
 
         } catch (JSONException | RemoteException e) {
             Log.e(TAG, "Print failed", e);
+        }
+    }
+
+    private void printCommands(String jsonString) {
+        try {
+            JSONArray ops = new JSONObject(jsonString).getJSONArray("ops");
+
+            printerService.printerInit(null);
+            printerService.enterPrinterBuffer(true);
+
+            for (int i = 0; i < ops.length(); i++) {
+                JSONObject op = ops.getJSONObject(i);
+                switch (op.optString("op")) {
+                    case "align":
+                        printerService.setAlignment(op.optInt("v", 0), null);
+                        break;
+                    case "text":
+                        printerService.printTextWithFont(
+                            op.optString("v"), "", (float) op.optDouble("size", 24), null);
+                        break;
+                    case "qr":
+                        printerService.printQRCode(
+                            op.optString("v"),
+                            Math.max(1, Math.min(16, op.optInt("module", 6))),
+                            Math.max(0, Math.min(3, op.optInt("level", 1))),
+                            null);
+                        break;
+                    case "feed":
+                        printerService.lineWrap(Math.max(0, Math.min(20, op.optInt("n", 1))), null);
+                        break;
+                    default:
+                        Log.w(TAG, "Unknown op: " + op.optString("op"));
+                }
+            }
+
+            printerService.exitPrinterBuffer(true);
+
+        } catch (JSONException | RemoteException e) {
+            Log.e(TAG, "Commands print failed", e);
         }
     }
 
