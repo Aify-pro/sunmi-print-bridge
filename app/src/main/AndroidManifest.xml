@@ -1,19 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Sans ça, bindService() vers woyou.aidlservice.jiuiv5 échoue
+         silencieusement sur Android 11+ (visibilité des paquets) : l'app
+         se lance, ne plante pas, mais n'imprime jamais. -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+    </queries>
+
+    <!-- Permission exigée par le service imprimante Sunmi pour s'y lier. -->
+    <uses-permission android:name="woyou.aidlservice.jiuiv5.permission.PRINTER" />
+
     <application
         android:allowBackup="false"
         android:label="SunmiPrintBridge"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.NoDisplay">
+        android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
-        <!-- This activity has NO UI — it receives the intent, prints, and closes -->
+        <!--
+          This activity has NO visible UI — it receives the intent, prints, and
+          closes. Theme.Translucent.NoTitleBar, not Theme.NoDisplay: printing
+          means binding to the AIDL service and waiting for its async
+          onServiceConnected callback before finish() can run, and Android
+          (hardened further on API 34) force-crashes any Theme.NoDisplay
+          activity that doesn't call finish() synchronously before onResume()
+          returns — which crashed every single print silently, no dialog, no
+          output, nothing but a background "app has stopped".
+        -->
         <activity
             android:name=".PrintActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay">
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
             <!-- Handle sunmiprint:// URLs from Chrome -->
             <intent-filter>

@@ -65,3 +65,22 @@ tag directly on the terminal's printer, with no PDF and no download.
 ```
 
 All fields are optional, but a label with no `qrData` just prints text.
+
+## Commands format (`sunmiprint://commands?data=...`)
+
+The caller owns the whole layout; the bridge only executes the list, in order.
+The paper is 58 mm wide with 384 printable dots.
+
+```json
+{"ops": [
+  {"op": "align", "v": 1},
+  {"op": "text", "v": "SERITEX", "size": 26},
+  {"op": "feed", "n": 1},
+  {"op": "qr", "v": "https://...", "module": 11, "level": 1},
+  {"op": "feed", "n": 4}
+]}
+```
+
+`align` v: 0 left, 1 center, 2 right. `text` size: font size (default 24).
+`qr` module: dots per module 1-16 (default 6), level: 0=L 1=M 2=Q 3=H.
+`feed` n: lines of paper (max 20).
