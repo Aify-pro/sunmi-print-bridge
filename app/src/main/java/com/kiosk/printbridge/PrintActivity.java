@@ -185,21 +185,19 @@ public class PrintActivity extends Activity {
             printerService.setAlignment(1, null); // center
 
             if (data.has("header")) {
-                printerService.printTextWithFont(data.getString("header") + "\n", "", 26, null);
+                printerService.printTextWithFont(data.getString("header") + "\n", "", 22, null);
                 printerService.lineWrap(1, null);
             }
 
             if (data.has("qrData")) {
-                // Module size in dots (1-16): the caller picks the largest that fits the
-                // 384-dot printable width for this QR's density; 6 is the old fixed default.
-                // Error level 1 = ~15% redundancy ("M").
-                int moduleSize = Math.max(1, Math.min(16, data.optInt("qrModuleSize", 6)));
-                printerService.printQRCode(data.getString("qrData"), moduleSize, 1, null);
+                // modulesize 6 dots/module, error level 1 (~15% redundancy, "M") —
+                // matches the density used by the desktop PDF version of this label.
+                printerService.printQRCode(data.getString("qrData"), 6, 1, null);
                 printerService.lineWrap(1, null);
             }
 
             if (data.has("code")) {
-                printerService.setFontSize(40, null);
+                printerService.setFontSize(32, null);
                 printerService.printText(data.getString("code") + "\n", null);
             }
 
