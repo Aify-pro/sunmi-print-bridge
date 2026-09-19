@@ -59,9 +59,12 @@ tag directly on the terminal's printer, with no PDF and no download.
 {
   "header": "SERITEX · SAC DE DÉCHETS",
   "qrData": "https://app.seritex.example/dechets/SAC-2026-00042",
+  "qrModuleSize": 9,
   "code": "SAC-2026-00042",
   "infoLine": "Créé le 18 sept. 2026"
 }
 ```
 
 All fields are optional, but a label with no `qrData` just prints text.
+`qrModuleSize` (dots per QR module, 1-16, default 6) lets the caller fill the
+384-dot printable width: `floor(376 / modulesInTheQr)`.
