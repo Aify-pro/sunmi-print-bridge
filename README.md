@@ -14,6 +14,25 @@ Chrome (Print button tap)
 
 `<type>` (the URL host) picks the print layout — `receipt` (default) or `label`, see below.
 
+## Kiosk mode (`KioskActivity`)
+
+The same APK also contains a home-screen activity that shows
+`https://seritex.vercel.app` full screen in a WebView (no address bar, screen
+kept on, Back ignored at the root, network errors retried every 5 s).
+`sunmiprint://` links fired by the page are routed to `PrintActivity`, so the
+print buttons work inside the kiosk exactly as they do in Chrome.
+
+Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
+The WebView engine of the V2 ships as Chrome 62, too old for the current
+Next.js bundle: update *Android System WebView* on the device first.
+
+To make it start at boot, press **Home** once and pick this app with **Always**
+in the chooser. To undo: `adb uninstall com.kiosk.printbridge`.
+
+The task is pinned with `startLockTask()`. Without Device Owner enrolment
+(which needs a factory reset), Android keeps its standard escape hatch: press
+and hold **Back + Recents** together.
+
 ## Build (no local tools needed)
 
 ### Option 1: GitHub Actions (recommended)

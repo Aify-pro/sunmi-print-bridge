@@ -11,11 +11,34 @@
     <!-- Permission exigée par le service imprimante Sunmi pour s'y lier. -->
     <uses-permission android:name="woyou.aidlservice.jiuiv5.permission.PRINTER" />
 
+    <!-- KioskActivity charge seritex.vercel.app dans une WebView. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="false"
         android:label="SunmiPrintBridge"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Translucent.NoTitleBar">
+
+        <!--
+          Écran d'accueil de la tablette. Enregistrée comme launcher (catégorie
+          HOME) pour pouvoir être choisie comme app d'accueil par défaut —
+          Android relance alors cette activity à chaque boot, sans
+          BroadcastReceiver dédié.
+        -->
+        <activity
+            android:name=".KioskActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!--
           This activity has NO visible UI — it receives the intent, prints, and

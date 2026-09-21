@@ -1,0 +1,133 @@
+package com.kiosk.printbridge;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.view.WindowManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+/**
+ * Écran d'accueil de la tablette : plein écran sur https://seritex.vercel.app,
+ * sans barre d'adresse, sans sortie vers le launcher Android normal. Reçoit le
+ * démarrage automatique via son intent-filter HOME/DEFAULT (voir
+ * AndroidManifest.xml) — c'est en devenant l'app d'accueil par défaut (choix
+ * « Toujours » dans le sélecteur qui s'affiche à l'appui sur Accueil) qu'elle
+ * s'ouvre à chaque redémarrage de la tablette, sans "boot receiver".
+ *
+ * Verrouillage volontairement strict (demande explicite) : bouton Retour
+ * ignoré une fois qu'on est sur la page racine, et startLockTask() épingle la
+ * tâche pour masquer Accueil/Récents. Sans réinscrire la tablette comme
+ * "Device Owner" (ce qui demanderait une réinitialisation d'usine complète),
+ * Android garde une échappatoire système standard : appui long simultané sur
+ * Retour + Récents. C'est documenté ici plutôt que caché.
+ */
+public class KioskActivity extends Activity {
+
+    private static final String TAG = "SunmiPrintBridge";
+    private static final String SERITEX_URL = "https://seritex.vercel.app";
+    private static final long RETRY_DELAY_MS = 5000;
+
+    private WebView webView;
+
+    @Override
+    @SuppressLint("SetJavaScriptEnabled")
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_FULLSCREEN
+        );
+        hideSystemBars();
+
+        webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                String scheme = uri.getScheme();
+                if ("http".equals(scheme) || "https".equals(scheme)) {
+                    return false; // reste dans cette WebView, pas de navigateur externe
+                }
+                // Le bouton d'impression de Seritex fait
+                // window.location.href = "sunmiprint://…" : une WebView n'ouvre
+                // pas seule ce schéma, on le route vers PrintActivity.
+                if ("sunmiprint".equals(scheme)) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    } catch (Exception e) {
+                        Log.e(TAG, "Impossible d'ouvrir " + scheme + "://", e);
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                // Réseau coupé : on réessaie tant qu'on n'est pas revenu, sinon la
+                // tablette (verrouillée) resterait bloquée sur une page d'erreur.
+                if (request.isForMainFrame()) {
+                    view.postDelayed(() -> view.loadUrl(SERITEX_URL), RETRY_DELAY_MS);
+                }
+            }
+        });
+        webView.loadUrl(SERITEX_URL);
+        setContentView(webView);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        hideSystemBars();
+        try {
+            startLockTask();
+        } catch (Exception ignored) {
+            // Pas grave si le pinning refuse (ex. déjà épinglé) : l'écran
+            // d'accueil reste quand même actif.
+        }
+    }
+
+    private void hideSystemBars() {
+        View decor = getWindow().getDecorView();
+        decor.setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        );
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Navigue en arrière dans l'appli web si possible ; sinon on ignore —
+        // pas de retour au launcher Android.
+        if (webView.canGoBack()) {
+            webView.goBack();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.destroy();
+        }
+        super.onDestroy();
+    }
+}
