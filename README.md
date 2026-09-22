@@ -30,6 +30,12 @@ will feel sluggish no matter how the app is tuned; `setLayerType(LAYER_TYPE_
 HARDWARE, ...)` is set, but there is no software fix for that RAM/CPU
 ceiling.
 
+The session (Supabase auth) survives reboots: `CookieManager.flush()` runs on
+every watchdog tick (≤ `WATCHDOG_INTERVAL_MS` old) and in `onPause()`, so a
+login is durably on disk well before a hard reboot can cut the process —
+`localStorage` already persists on its own, cookies don't without an explicit
+flush.
+
 Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
 The WebView engine of the V2 ships as Chrome 62, too old for the current
 Next.js bundle: update *Android System WebView* on the device first.

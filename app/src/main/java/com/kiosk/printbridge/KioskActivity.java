@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -83,6 +84,12 @@ public class KioskActivity extends Activity {
                 self.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(self);
             }
+            // Écrit les cookies de session sur disque au fil de l'eau, pas
+            // seulement au premier plan perdu (onPause) : sur un appareil
+            // verrouillé qui peut rester des heures sans jamais perdre le
+            // focus, ça borne à WATCHDOG_INTERVAL_MS la fenêtre où une
+            // coupure brutale perdrait une connexion toute récente.
+            CookieManager.getInstance().flush();
             watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS);
         }
     };
@@ -111,6 +118,13 @@ public class KioskActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+
+        // Session (connexion Supabase) : le localStorage se persiste seul,
+        // mais les cookies restent en mémoire tant qu'on ne force pas leur
+        // écriture sur disque. Un redémarrage coupe le processus brutalement
+        // (pas un arrêt propre de l'app) : sans flush(), la session pouvait
+        // être perdue et redemandait une connexion à chaque démarrage.
+        CookieManager.getInstance().setAcceptCookie(true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -203,6 +217,7 @@ public class KioskActivity extends Activity {
     @Override
     protected void onPause() {
         isTopResumed = false;
+        CookieManager.getInstance().flush();
         super.onPause();
     }
 
