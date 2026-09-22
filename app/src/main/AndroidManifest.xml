@@ -18,6 +18,14 @@
     <!-- BootReceiver relance le kiosque après démarrage. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Scan QR (atelier, sacs de déchets, patronnage) : getUserMedia côté
+         page. Le WebChromeClient de KioskActivity ne peut accorder ce que la
+         WebView demande que si Android a déjà accordé la permission caméra
+         à l'app elle-même. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
     <application
         android:allowBackup="false"
         android:label="SunmiPrintBridge"

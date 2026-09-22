@@ -1,21 +1,28 @@
 package com.kiosk.printbridge;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Écran d'accueil de la tablette : plein écran sur https://seritex.vercel.app,
@@ -56,14 +63,22 @@ public class KioskActivity extends Activity {
     private static final String SERITEX_URL = "https://seritex.vercel.app";
     private static final long RETRY_DELAY_MS = 5000;
     private static final long WATCHDOG_INTERVAL_MS = 2500;
+    private static final int CAMERA_PERMISSION_REQUEST = 1;
 
     private WebView webView;
     private boolean isTopResumed = false;
+    private boolean permissionRequestInFlight = false;
     private final Handler watchdogHandler = new Handler();
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
-            if (!isTopResumed) {
+            // La boîte de dialogue système "Autoriser la caméra ?" met notre
+            // activity en pause (isTopResumed=false) le temps que
+            // l'utilisateur réponde, ce qui peut dépasser 2,5 s : sans ce
+            // garde-fou, le watchdog la referme avant qu'elle ait eu de
+            // réponse — même symptôme que le toast "Écran épinglé" corrigé
+            // plus haut, pour un dialogue système différent.
+            if (!isTopResumed && !permissionRequestInFlight) {
                 Intent self = new Intent(KioskActivity.this, KioskActivity.class);
                 self.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(self);
@@ -118,8 +133,41 @@ public class KioskActivity extends Activity {
                 }
             }
         });
+        // Scan QR (atelier, sacs de déchets, patronnage) : la page appelle
+        // getUserMedia({video:...}), qu'une WebView refuse par défaut sans
+        // WebChromeClient. On n'accorde que la vidéo (RESOURCE_VIDEO_CAPTURE),
+        // jamais l'audio, et seulement si Android a déjà accordé CAMERA à
+        // l'app — sinon la demande de permission runtime ci-dessous n'a pas
+        // encore abouti.
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                boolean cameraGranted = checkSelfPermission(Manifest.permission.CAMERA)
+                    == PackageManager.PERMISSION_GRANTED;
+                if (!cameraGranted) {
+                    request.deny();
+                    return;
+                }
+                List<String> granted = new ArrayList<>();
+                for (String resource : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                        granted.add(resource);
+                    }
+                }
+                if (granted.isEmpty()) {
+                    request.deny();
+                } else {
+                    request.grant(granted.toArray(new String[0]));
+                }
+            }
+        });
         webView.loadUrl(SERITEX_URL);
         setContentView(webView);
+
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permissionRequestInFlight = true;
+            requestPermissions(new String[] { Manifest.permission.CAMERA }, CAMERA_PERMISSION_REQUEST);
+        }
 
         watchdogHandler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
     }
@@ -147,6 +195,21 @@ public class KioskActivity extends Activity {
     protected void onPause() {
         isTopResumed = false;
         super.onPause();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != CAMERA_PERMISSION_REQUEST) {
+            return;
+        }
+        permissionRequestInFlight = false;
+        // La toute première demande de scan QR peut avoir eu lieu avant que
+        // l'utilisateur ne réponde à ce dialogue système ; on recharge pour
+        // repartir d'un état propre plutôt que de dépendre d'un nouveau tap.
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            webView.reload();
+        }
     }
 
     /** Masque uniquement la barre de navigation du bas ; la barre de statut du

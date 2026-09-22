@@ -42,8 +42,20 @@ after boot on the V2 — `logcat` shows `PMV2Utils: CUSTOM_LAUNCHER:
 com.woyou.launcher` followed by an explicit `START` from the system UID, an
 OEM behaviour hardcoded below anything `pm`/`cmd` can reach. `KioskActivity`
 fights back with a `Handler` loop (`WATCHDOG_INTERVAL_MS`, 2.5 s) that
-re-issues `startActivity` on itself; harmless when already in front
-(`singleTask` → `onNewIntent`, no reload), and takes focus back otherwise.
+re-issues `startActivity` on itself, but only while `isTopResumed` is false —
+calling it while already in front used to retrigger `onResume()` →
+`startLockTask()` on every tick, and Android re-shows its "Screen pinned"
+toast on every call even when already pinned, making the tablet unusable.
+`startLockTask()` itself is now also guarded by `getLockTaskModeState()` for
+the same reason.
+
+QR scanning (atelier, waste bags, patronnage) calls
+`getUserMedia({video:...})` in the page, which a bare WebView denies by
+default. `KioskActivity` requests `CAMERA` at runtime and grants only
+`RESOURCE_VIDEO_CAPTURE` (never audio) through a `WebChromeClient`, once
+Android's own permission is granted. The watchdog also backs off while that
+permission dialog is up (`permissionRequestInFlight`), for the same reason as
+above — otherwise it can dismiss the dialog before the user answers it.
 
 To undo: `adb uninstall com.kiosk.printbridge`.
 
