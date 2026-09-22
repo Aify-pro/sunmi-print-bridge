@@ -18,11 +18,17 @@ Chrome (Print button tap)
 
 The same APK also contains a home-screen activity that shows
 `https://seritex.vercel.app` in a WebView (no address bar, screen kept on,
-Back ignored at the root, network errors retried every 5 s). The bottom
-navigation bar is hidden, but the top status bar stays visible and pullable
-(quick settings, Wi-Fi toggle) on purpose. `sunmiprint://` links fired by the
-page are routed to `PrintActivity`, so the print buttons work inside the
-kiosk exactly as they do in Chrome.
+Back ignored at the root, network errors retried every 5 s, pinch-to-zoom
+enabled). The bottom navigation bar is hidden, but the top status bar stays
+visible and pullable (quick settings, Wi-Fi toggle) on purpose.
+`sunmiprint://` links fired by the page are routed to `PrintActivity`, so the
+print buttons work inside the kiosk exactly as they do in Chrome.
+
+The Sunmi V2 tested against has ~0.9 GB RAM and a MediaTek MT8765WA (entry
+level, 2017-18) — running a modern Chromium WebView plus a Next.js SPA on it
+will feel sluggish no matter how the app is tuned; `setLayerType(LAYER_TYPE_
+HARDWARE, ...)` is set, but there is no software fix for that RAM/CPU
+ceiling.
 
 Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
 The WebView engine of the V2 ships as Chrome 62, too old for the current
