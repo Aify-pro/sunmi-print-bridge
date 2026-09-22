@@ -28,6 +28,11 @@ import android.webkit.WebViewClient;
  * "Device Owner" (ce qui demanderait une réinitialisation d'usine complète),
  * Android garde une échappatoire système standard : appui long simultané sur
  * Retour + Récents. C'est documenté ici plutôt que caché.
+ *
+ * La barre de statut du haut reste volontairement visible et déroulable
+ * (accès Wi-Fi depuis les réglages rapides, demande explicite) : seule la
+ * barre de navigation du bas est masquée. startLockTask() empêche déjà de
+ * quitter l'écran vers Accueil/Récents depuis ce menu déroulant.
  */
 public class KioskActivity extends Activity {
 
@@ -42,10 +47,7 @@ public class KioskActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                | WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideSystemBars();
 
         webView = new WebView(this);
@@ -102,15 +104,14 @@ public class KioskActivity extends Activity {
         }
     }
 
+    /** Masque uniquement la barre de navigation du bas ; la barre de statut du
+     * haut reste visible et déroulable (accès Wi-Fi). */
     private void hideSystemBars() {
         View decor = getWindow().getDecorView();
         decor.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         );
     }
 

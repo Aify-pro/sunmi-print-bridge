@@ -17,10 +17,12 @@ Chrome (Print button tap)
 ## Kiosk mode (`KioskActivity`)
 
 The same APK also contains a home-screen activity that shows
-`https://seritex.vercel.app` full screen in a WebView (no address bar, screen
-kept on, Back ignored at the root, network errors retried every 5 s).
-`sunmiprint://` links fired by the page are routed to `PrintActivity`, so the
-print buttons work inside the kiosk exactly as they do in Chrome.
+`https://seritex.vercel.app` in a WebView (no address bar, screen kept on,
+Back ignored at the root, network errors retried every 5 s). The bottom
+navigation bar is hidden, but the top status bar stays visible and pullable
+(quick settings, Wi-Fi toggle) on purpose. `sunmiprint://` links fired by the
+page are routed to `PrintActivity`, so the print buttons work inside the
+kiosk exactly as they do in Chrome.
 
 Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
 The WebView engine of the V2 ships as Chrome 62, too old for the current
