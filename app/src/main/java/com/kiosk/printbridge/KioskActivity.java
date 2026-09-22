@@ -2,6 +2,8 @@ package com.kiosk.printbridge;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -39,10 +41,14 @@ import android.webkit.WebViewClient;
  * force woyou.launcher (le launcher d'usine) environ 15 s après le
  * démarrage — logs : "PMV2Utils: CUSTOM_LAUNCHER: com.woyou.launcher" suivi
  * d'un START explicite depuis l'UID système. Rien d'installable ou de
- * désactivable ne permet de l'empêcher sans root. watchdog() contre-attaque
- * en relançant KioskActivity toutes les WATCHDOG_INTERVAL_MS : sans effet
- * quand on est déjà au premier plan (singleTask → onNewIntent, pas de
- * rechargement), et reprend la main sinon.
+ * désactivable ne permet de l'empêcher sans root. watchdog contre-attaque en
+ * relançant KioskActivity toutes les WATCHDOG_INTERVAL_MS, mais seulement
+ * quand isTopResumed est faux : au premier plan, il ne fait rien. Sans cette
+ * garde, chaque relance redéclenchait onResume() → startLockTask() → le
+ * toast système "Écran épinglé" réapparaissait en boucle toutes les 2,5 s,
+ * rendant la tablette inutilisable (constaté en test). startLockTask()
+ * lui-même est maintenant gardé par getLockTaskModeState() pour la même
+ * raison : ne jamais le rappeler si la tâche est déjà épinglée.
  */
 public class KioskActivity extends Activity {
 
@@ -52,13 +58,16 @@ public class KioskActivity extends Activity {
     private static final long WATCHDOG_INTERVAL_MS = 2500;
 
     private WebView webView;
+    private boolean isTopResumed = false;
     private final Handler watchdogHandler = new Handler();
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
-            Intent self = new Intent(KioskActivity.this, KioskActivity.class);
-            self.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            startActivity(self);
+            if (!isTopResumed) {
+                Intent self = new Intent(KioskActivity.this, KioskActivity.class);
+                self.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(self);
+            }
             watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS);
         }
     };
@@ -118,13 +127,26 @@ public class KioskActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        isTopResumed = true;
         hideSystemBars();
-        try {
-            startLockTask();
-        } catch (Exception ignored) {
-            // Pas grave si le pinning refuse (ex. déjà épinglé) : l'écran
-            // d'accueil reste quand même actif.
+
+        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        boolean alreadyLocked = am != null
+            && am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
+        if (!alreadyLocked) {
+            try {
+                startLockTask();
+            } catch (Exception ignored) {
+                // Pas grave si le pinning refuse : l'écran d'accueil reste
+                // quand même actif.
+            }
         }
+    }
+
+    @Override
+    protected void onPause() {
+        isTopResumed = false;
+        super.onPause();
     }
 
     /** Masque uniquement la barre de navigation du bas ; la barre de statut du
