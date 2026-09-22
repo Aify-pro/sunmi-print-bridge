@@ -28,8 +28,16 @@ Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
 The WebView engine of the V2 ships as Chrome 62, too old for the current
 Next.js bundle: update *Android System WebView* on the device first.
 
-To make it start at boot, press **Home** once and pick this app with **Always**
-in the chooser. To undo: `adb uninstall com.kiosk.printbridge`.
+A `BootReceiver` starts `KioskActivity` right after `BOOT_COMPLETED`, on top
+of whatever launcher is underneath. This is needed on the Sunmi V2: its ROM
+ignores the standard Android "default home app" preference — confirmed with
+`cmd package set-home-activity`, which does persist in
+`dumpsys package`'s Preferred Activities, but is not honored at boot or on a
+fresh `HOME` intent, always resolving back to `woyou.launcher` regardless. On
+a device that does honor it (e.g. the V3H), pressing **Home** once and picking
+this app with **Always** works too, as a normal launcher choice.
+
+To undo: `adb uninstall com.kiosk.printbridge`.
 
 The task is pinned with `startLockTask()`. Without Device Owner enrolment
 (which needs a factory reset), Android keeps its standard escape hatch: press
