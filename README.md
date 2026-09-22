@@ -37,7 +37,20 @@ fresh `HOME` intent, always resolving back to `woyou.launcher` regardless. On
 a device that does honor it (e.g. the V3H), pressing **Home** once and picking
 this app with **Always** works too, as a normal launcher choice.
 
+`system_server` itself also force-relaunches `woyou.launcher` roughly 15 s
+after boot on the V2 — `logcat` shows `PMV2Utils: CUSTOM_LAUNCHER:
+com.woyou.launcher` followed by an explicit `START` from the system UID, an
+OEM behaviour hardcoded below anything `pm`/`cmd` can reach. `KioskActivity`
+fights back with a `Handler` loop (`WATCHDOG_INTERVAL_MS`, 2.5 s) that
+re-issues `startActivity` on itself; harmless when already in front
+(`singleTask` → `onNewIntent`, no reload), and takes focus back otherwise.
+
 To undo: `adb uninstall com.kiosk.printbridge`.
+
+If the app was just (re)installed, Android withholds `BOOT_COMPLETED` until
+it has been launched at least once (the app's "stopped" state) — open it
+manually one time (e.g. `adb shell am start -n
+com.kiosk.printbridge/.KioskActivity`) before the first reboot you test.
 
 The task is pinned with `startLockTask()`. Without Device Owner enrolment
 (which needs a factory reset), Android keeps its standard escape hatch: press

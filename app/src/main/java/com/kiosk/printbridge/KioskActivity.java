@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -33,14 +34,34 @@ import android.webkit.WebViewClient;
  * (accès Wi-Fi depuis les réglages rapides, demande explicite) : seule la
  * barre de navigation du bas est masquée. startLockTask() empêche déjà de
  * quitter l'écran vers Accueil/Récents depuis ce menu déroulant.
+ *
+ * Sur la Sunmi V2, un mécanisme codé en dur dans system_server relance de
+ * force woyou.launcher (le launcher d'usine) environ 15 s après le
+ * démarrage — logs : "PMV2Utils: CUSTOM_LAUNCHER: com.woyou.launcher" suivi
+ * d'un START explicite depuis l'UID système. Rien d'installable ou de
+ * désactivable ne permet de l'empêcher sans root. watchdog() contre-attaque
+ * en relançant KioskActivity toutes les WATCHDOG_INTERVAL_MS : sans effet
+ * quand on est déjà au premier plan (singleTask → onNewIntent, pas de
+ * rechargement), et reprend la main sinon.
  */
 public class KioskActivity extends Activity {
 
     private static final String TAG = "SunmiPrintBridge";
     private static final String SERITEX_URL = "https://seritex.vercel.app";
     private static final long RETRY_DELAY_MS = 5000;
+    private static final long WATCHDOG_INTERVAL_MS = 2500;
 
     private WebView webView;
+    private final Handler watchdogHandler = new Handler();
+    private final Runnable watchdog = new Runnable() {
+        @Override
+        public void run() {
+            Intent self = new Intent(KioskActivity.this, KioskActivity.class);
+            self.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(self);
+            watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS);
+        }
+    };
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -90,6 +111,8 @@ public class KioskActivity extends Activity {
         });
         webView.loadUrl(SERITEX_URL);
         setContentView(webView);
+
+        watchdogHandler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
     }
 
     @Override
@@ -126,6 +149,7 @@ public class KioskActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        watchdogHandler.removeCallbacks(watchdog);
         if (webView != null) {
             webView.destroy();
         }
