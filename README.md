@@ -14,6 +14,72 @@ Chrome (Print button tap)
 
 `<type>` (the URL host) picks the print layout — `receipt` (default) or `label`, see below.
 
+## Kiosk mode (`KioskActivity`)
+
+The same APK also contains a home-screen activity that shows
+`https://seritex.vercel.app` in a WebView (no address bar, screen kept on,
+Back ignored at the root, network errors retried every 5 s, pinch-to-zoom
+enabled). The bottom navigation bar is hidden, but the top status bar stays
+visible and pullable (quick settings, Wi-Fi toggle) on purpose.
+`sunmiprint://` links fired by the page are routed to `PrintActivity`, so the
+print buttons work inside the kiosk exactly as they do in Chrome.
+
+The Sunmi V2 tested against has ~0.9 GB RAM and a MediaTek MT8765WA (entry
+level, 2017-18) — running a modern Chromium WebView plus a Next.js SPA on it
+will feel sluggish no matter how the app is tuned; `setLayerType(LAYER_TYPE_
+HARDWARE, ...)` is set, but there is no software fix for that RAM/CPU
+ceiling.
+
+The session (Supabase auth) survives reboots: `CookieManager.flush()` runs on
+every watchdog tick (≤ `WATCHDOG_INTERVAL_MS` old) and in `onPause()`, so a
+login is durably on disk well before a hard reboot can cut the process —
+`localStorage` already persists on its own, cookies don't without an explicit
+flush.
+
+Works on the Sunmi V3H and on the Sunmi V2 (Android 7.1.1, `minSdk 24`).
+The WebView engine of the V2 ships as Chrome 62, too old for the current
+Next.js bundle: update *Android System WebView* on the device first.
+
+A `BootReceiver` starts `KioskActivity` right after `BOOT_COMPLETED`, on top
+of whatever launcher is underneath. This is needed on the Sunmi V2: its ROM
+ignores the standard Android "default home app" preference — confirmed with
+`cmd package set-home-activity`, which does persist in
+`dumpsys package`'s Preferred Activities, but is not honored at boot or on a
+fresh `HOME` intent, always resolving back to `woyou.launcher` regardless. On
+a device that does honor it (e.g. the V3H), pressing **Home** once and picking
+this app with **Always** works too, as a normal launcher choice.
+
+`system_server` itself also force-relaunches `woyou.launcher` roughly 15 s
+after boot on the V2 — `logcat` shows `PMV2Utils: CUSTOM_LAUNCHER:
+com.woyou.launcher` followed by an explicit `START` from the system UID, an
+OEM behaviour hardcoded below anything `pm`/`cmd` can reach. `KioskActivity`
+fights back with a `Handler` loop (`WATCHDOG_INTERVAL_MS`, 2.5 s) that
+re-issues `startActivity` on itself, but only while `isTopResumed` is false —
+calling it while already in front used to retrigger `onResume()` →
+`startLockTask()` on every tick, and Android re-shows its "Screen pinned"
+toast on every call even when already pinned, making the tablet unusable.
+`startLockTask()` itself is now also guarded by `getLockTaskModeState()` for
+the same reason.
+
+QR scanning (atelier, waste bags, patronnage) calls
+`getUserMedia({video:...})` in the page, which a bare WebView denies by
+default. `KioskActivity` requests `CAMERA` at runtime and grants only
+`RESOURCE_VIDEO_CAPTURE` (never audio) through a `WebChromeClient`, once
+Android's own permission is granted. The watchdog also backs off while that
+permission dialog is up (`permissionRequestInFlight`), for the same reason as
+above — otherwise it can dismiss the dialog before the user answers it.
+
+To undo: `adb uninstall com.kiosk.printbridge`.
+
+If the app was just (re)installed, Android withholds `BOOT_COMPLETED` until
+it has been launched at least once (the app's "stopped" state) — open it
+manually one time (e.g. `adb shell am start -n
+com.kiosk.printbridge/.KioskActivity`) before the first reboot you test.
+
+The task is pinned with `startLockTask()`. Without Device Owner enrolment
+(which needs a factory reset), Android keeps its standard escape hatch: press
+and hold **Back + Recents** together.
+
 ## Build (no local tools needed)
 
 ### Option 1: GitHub Actions (recommended)
